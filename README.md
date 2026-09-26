@@ -165,7 +165,6 @@ RE Engine utilizes specialized delta bit-packing streams for bone position, rota
 <br><br>
 
 ---
----
 
 # MHRS Blender Importer
 
