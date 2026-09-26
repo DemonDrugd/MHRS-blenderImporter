@@ -171,7 +171,7 @@ RE Engine utilizes specialized delta bit-packing streams for bone position, rota
 # MHRS Blender Importer
 
 这是一个用于导入《怪物猎人：崛起 / 曙光》（Monster Hunter Rise / Sunbreak）及卡普空 RE 引擎部分系列游戏的 `.mesh` 模型文件、`.mdf2` 材质文件、`.tex` 贴图文件以及 `.motlist` 骨骼动作动画文件的 Blender 插件。
-<img width="746" height="566" alt="屏幕截图 2026-09-25 233207" src="https://github.com/user-attachments/assets/45766ba7-b745-4ecc-9c8c-e5e48b19f6da" />
+<img width="970" height="818" alt="屏幕截图 2026-09-26 131145" src="https://github.com/user-attachments/assets/c1619afb-0b09-4174-ab44-a8589ec93441" />
 
 ---
 
@@ -221,7 +221,7 @@ RE Engine utilizes specialized delta bit-packing streams for bone position, rota
    - **Force Center**：根据需要选择是否锁定根骨骼水平位移。
    - **Creature Visibility Control**：若导入鸟类、昆虫等环境生物动作，保持勾选可自动启用多边形切换驱动；若需纯手动控制部件，取消勾选即可。（对于鸟类运动的程序控制逆向可能存在问题）
 6. 点击 **确定** 完成导入。打开 Blender 底部的 **动画摄影表 / 动作编辑器**（Action Editor），即可自由切换和回放不同的 Action 动作！
-<img width="1694" height="686" alt="屏幕截图 2026-09-25 131428" src="https://github.com/user-attachments/assets/161f4b11-17aa-40e6-be93-0a03442a35c9" />
+<img width="746" height="566" alt="屏幕截图 2026-09-25 233207" src="https://github.com/user-attachments/assets/45766ba7-b745-4ecc-9c8c-e5e48b19f6da" />
 
 ---
 
