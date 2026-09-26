@@ -1,6 +1,7 @@
 # MHRS Blender Importer
 
 This is a Blender add-on used for importing `.mesh` model files, `.mdf2` material files, `.tex` texture files, and `.motlist` skeletal animation files from *Monster Hunter Rise / Sunbreak* and some of Capcom's RE Engine series games.
+<img width="2028" height="1027" alt="屏幕截图 2026-09-25 124011" src="https://github.com/user-attachments/assets/84926da0-a35f-44b6-846c-3ac444fd711d" />
 
 ---
 
@@ -48,8 +49,9 @@ This is a Blender add-on used for importing `.mesh` model files, `.mdf2` materia
 4. Click the `+` button next to an action (or click `[ALL]` to add all clips) to queue them for loading.
 5. Configure bottom options:
    - **Force Center**: Lock horizontal root bone displacement to convert in-place loops as needed.
-   - **Creature Visibility Control**: Keep checked when importing endemic life motions (birds, insects, etc.) to automatically drive dynamic part visibility; uncheck to maintain all polygon parts visible for full manual control in Blender.
+   - **Creature Visibility Control**: Keep checked when importing endemic life motions (birds, insects, etc.) to automatically drive dynamic part visibility; uncheck to maintain all polygon parts visible for full manual control in Blender.(There may be issues with the reverse engineering of the programmed control of avian movement.)
 6. Click **OK** to complete the import. Switch to Blender's **Dope Sheet / Action Editor** at the bottom to freely preview and cycle through imported Actions!
+<img width="1294" height="856" alt="QQ20260926-160901-HD" src="https://github.com/user-attachments/assets/653d5c8c-b4cd-4bde-aaa7-4b3e863e641e" />
 
 ---
 
@@ -169,6 +171,7 @@ RE Engine utilizes specialized delta bit-packing streams for bone position, rota
 # MHRS Blender Importer
 
 这是一个用于导入《怪物猎人：崛起 / 曙光》（Monster Hunter Rise / Sunbreak）及卡普空 RE 引擎部分系列游戏的 `.mesh` 模型文件、`.mdf2` 材质文件、`.tex` 贴图文件以及 `.motlist` 骨骼动作动画文件的 Blender 插件。
+<img width="746" height="566" alt="屏幕截图 2026-09-25 233207" src="https://github.com/user-attachments/assets/45766ba7-b745-4ecc-9c8c-e5e48b19f6da" />
 
 ---
 
@@ -216,8 +219,9 @@ RE Engine utilizes specialized delta bit-packing streams for bone position, rota
 4. 点击单个动作右侧的 `+` 号（或点击 `[ALL]` 添加全部动作）加入加载列表。
 5. 在下方选项中：
    - **Force Center**：根据需要选择是否锁定根骨骼水平位移。
-   - **Creature Visibility Control**：若导入鸟类、昆虫等环境生物动作，保持勾选可自动启用多边形切换驱动；若需纯手动控制部件，取消勾选即可。
+   - **Creature Visibility Control**：若导入鸟类、昆虫等环境生物动作，保持勾选可自动启用多边形切换驱动；若需纯手动控制部件，取消勾选即可。（对于鸟类运动的程序控制逆向可能存在问题）
 6. 点击 **确定** 完成导入。打开 Blender 底部的 **动画摄影表 / 动作编辑器**（Action Editor），即可自由切换和回放不同的 Action 动作！
+<img width="1694" height="686" alt="屏幕截图 2026-09-25 131428" src="https://github.com/user-attachments/assets/161f4b11-17aa-40e6-be93-0a03442a35c9" />
 
 ---
 
