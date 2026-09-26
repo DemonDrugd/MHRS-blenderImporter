@@ -1,0 +1,334 @@
+# MHRS Blender Importer
+
+This is a Blender add-on used for importing `.mesh` model files, `.mdf2` material files, `.tex` texture files, and `.motlist` skeletal animation files from *Monster Hunter Rise / Sunbreak* and some of Capcom's RE Engine series games.
+
+---
+
+## Acknowledgements
+* Thanks to **alphaZomega** and **Gh0stblade**. The basic binary data structures and reverse-engineering specifications of this add-on reference their work on the [fmt_RE_MESH-Noesis-Plugin](https://github.com/alphazolam/fmt_RE_MESH-Noesis-Plugin) for Noesis.
+* Thanks to **FluffyQuack** for creating the [REtool](http://modarchive.org/member.php?action=viewprofile&uid=1284), which provides indispensable support for unpacking and extracting `.pak` archives from *Monster Hunter Rise* and other RE Engine titles.
+* Thanks to **nfh994** for developing the [MHRUnpack](https://github.com/nfh994/MHRUnpack) dedicated unpacking tool, and **Ekey** for developing [REE.Unpacker](https://github.com/Ekey/REE.PAK.Tool).
+* Thanks to the Capcom game modding and reverse-engineering community for their outstanding contributions to deciphering various RE Engine file formats.
+* This add-on was designed and reconstructed with the full collaboration and assistance of **Google Antigravity**. Code comments may contain Chinese. Thanks to Google.
+
+---
+
+## Notes
+1. The testing platform for this add-on is **Blender 3.6.13**. Compatibility with other versions has not been extensively tested, but it should work in theory.
+2. Before using this add-on, you must first use **REtool** (or similar tools like MHRUnpack) to unpack the `.pak` files of *Monster Hunter Rise*, obtaining the complete extracted resource directory (e.g., the `STM/` folder tree; preserve the original directory structure without modification, and ensure the `MasterMaterial` directory is fully extracted).
+3. The add-on features a built-in pure-Python `.tex` parser and DDS header generator. Upon import, it can **automatically convert `.tex.xx` textures into standard `.dds` format**, eliminating the need for manual external texture conversion tools.
+4. **You must import the `.mesh.xx` model file first**, and **select the generated Armature before importing the `.motlist.xx` animation file**.
+5. It is strongly recommended to avoid non-one-to-one imports of models, armatures, and animations, as potential issues have not been tested (it is suggested to process one character or monster per project).
+6. Compatibility with RE Engine game assets other than *Monster Hunter Rise* has not been tested.
+
+---
+
+## Instructions
+
+### 1. Installation
+1. Download the complete ZIP archive of the repository or clone it via Git.
+2. Open Blender and go to the top menu bar: `Edit -> Preferences -> Add-ons`.
+3. Click **Install...** in the top-right corner, select the downloaded ZIP file, and enable **Import-Export: MHRS-blenderImporter**; alternatively, copy the `MHRS-blenderImporter` folder directly into your Blender add-ons directory.
+
+### 2. Importing Models (`.mesh.xx`)
+1. Menu bar: `File -> Import -> MHRS Mesh (.mesh.*)`.
+2. An interactive browser window will appear. Navigate to the unpacked model directory (e.g., `STM/enemy/em020/00/mod/`) using the top path bar or directory list.
+3. Select the target `.mesh.*` file and click the `+` button on the right to add it to the loading queue (`Files to load`).
+4. Configure options in the bottom panel as needed:
+   - **Load Textures**: Load primary PBR textures (recommended).
+   - **Load All Textures**: Load all auxiliary masks and damage maps (useful for modding/texture editing).
+   - **Convert Textures**: Automatically convert `.tex` to `.dds` (recommended).
+   - **Collapse Bones**: Clean up redundant terminal dummy bones.
+5. Click **OK** below. The add-on will automatically generate the armature, bind mesh weights and skinning, parse MDF2 materials, assemble shader node trees, and link textures.
+
+### 3. Importing Animations (`.motlist.xx`)
+1. In the 3D Viewport, **select the imported model's Armature object first**.
+2. Menu bar: `File -> Import -> MHRS MotionList (.motlist.*)`.
+3. In the top list, select the target `.motlist.*` motion file. The sub-action list below will immediately display all contained clips, names, and frame counts.
+4. Click the `+` button next to an action (or click `[ALL]` to add all clips) to queue them for loading.
+5. Configure bottom options:
+   - **Force Center**: Lock horizontal root bone displacement to convert in-place loops as needed.
+   - **Creature Visibility Control**: Keep checked when importing endemic life motions (birds, insects, etc.) to automatically drive dynamic part visibility; uncheck to maintain all polygon parts visible for full manual control in Blender.
+6. Click **OK** to complete the import. Switch to Blender's **Dope Sheet / Action Editor** at the bottom to freely preview and cycle through imported Actions!
+
+---
+
+## Format Specification
+*(The following content is generated by Google Gemini)*
+
+Based on the mainstream version of Capcom's RE Engine in *Monster Hunter Rise / Sunbreak*, data is strictly stored in little-endian format.
+
+### 1. Model File Structure (.MESH)
+Baseline version: `version = 2109148288` (corresponds to `meshVersion = 2`, the latest unpacked PC Sunbreak format).
+
+#### 1.1 File Header Area
+The file begins with the ASCII magic identifier `MESH` (`0x4853454D`), followed by internal version numbers and absolute file offsets for core data blocks.
+
+| Offset | Length | Type | Field Name | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `0x00` | 4 | Char Array | Magic | File identifier, fixed as `MESH` (`0x4853454D`) |
+| `0x04` | 4 | uint32 | Version | Internal model version number (`2109148288` in Sunbreak) |
+| `0x08` | 4 | uint32 | FileSize | Total size of the model file in bytes |
+| `0x12` | 2 | uint16 | NumNodes | Total count of named nodes (bones, materials, etc.) |
+| `0x18` | 8 | uint64 | LOD1Offset | Absolute file offset to the **LOD1 & Submesh Descriptor Area** |
+| `0x30` | 8 | uint64 | BonesOffset | Absolute file offset to the **Bones Data Area** |
+| `0x48` | 8 | uint64 | VBuffHdrOffset | Absolute file offset to the **Vertex & Index Buffer Header** |
+| `0x60` | 8 | uint64 | NodesIndicesOffset | Absolute file offset to the **Node Remap Indices Area** |
+| `0x78` | 8 | uint64 | NamesOffset | Absolute file offset to the **String Pointer Table Area** |
+
+#### 1.2 Bone Data and Transform Matrices
+Located at `BonesOffset`, containing three contiguous data blocks:
+1. **Bone Hierarchy Information**:
+   - Stores bone count (`boneCount`) and each bone's parent index (`parentIndex`; `-1` indicates a root node with no parent).
+2. **Global Transform Matrices (Global Rest Matrices)**:
+   - Immediately follows the hierarchy structure. Each bone occupies 64 bytes (16 single-precision floats, 4x4 matrix).
+   - **Coordinate System Pitfall**: RE Engine stores transform matrices in **row-major order**. When importing into Blender, they must be transposed to **column-major order**, with scale applied to translation coordinates, otherwise bone orientations and positions will be distorted.
+3. **Animation and Skinning Remap Table (`boneRemapTable`)**:
+   - Located 48 bytes after the bone data header, mapping local bone indices referenced by vertices to global real bone indices.
+   - Vertex blend indices must be remapped through this lookup table to achieve an exact 1:1 binding with Blender bone vertex groups.
+
+#### 1.3 Vertex Buffer
+Vertex attribute descriptors (Vertex Elements) are parsed via `VBuffHdrOffset`:
+- **Position (Type 0)**: 3D coordinates, 3 single-precision 32-bit floats (`float3`).
+- **Normal (Type 1)**: 4D compressed normals, 4 signed bytes (`int8`), normalized by dividing by 127.0.
+- **UV0 / UV1 (Type 2 / 3)**: Texture UV coordinates, 16-bit half-precision floats (`float16 / half`). Because DirectX sets the UV origin at the top-left, the V axis must be inverted as `(u, 1.0 - v)` when imported into Blender.
+- **Blend Weights (Type 4)**: Skeletal weights, typically 4 normalized bytes.
+- **Blend Indices (Type 5)**: Bone indices, supporting up to 8 influencing bones per vertex.
+
+#### 1.4 LOD and Submesh Data Area
+Located at `LOD1Offset`:
+- Sequentially declares the total LOD levels (`lod_count`) and total material count (`mat_count`).
+- Iterates through Submesh headers to obtain each submesh's **`GroupID`** (used to distinguish body parts, intact meshes, and severed/damaged parts) as well as the referenced material index `MaterialID`.
+
+---
+
+### 2. Material File Structure (.MDF2)
+RE Engine material definition file with the extension `.mdf2.xx` (`.mdf2.23` in Sunbreak).
+
+#### 2.1 File Header
+- `0x00 - 0x03`: Magic identifier fixed as `MDF\0` (`0x46444D`).
+- `0x04 - 0x07`: Minor version number and material count (`mat_count`).
+
+#### 2.2 Material Info Block
+Each material block declares a material name string pointer (UTF-16LE wide-character encoding), shader template path (`MasterMaterial/.../xxx.mmtr`), alpha mode (`AlphaFlags`), and a float property table.
+- **Base Physical Parameters**: `BaseColor` (RGBA 4-float vector), `Roughness`, `Metallic`, and `Emissive` (emissive color and multiplier intensity).
+
+#### 2.3 Texture Slots Declaration (Textures List)
+Declares all texture slot types and relative paths referenced by the material (e.g., `BaseDielectricMap -> enemy/.../em020_00_ALBD.tex`).
+- The add-on automatically wires connections within the Blender Principled BSDF node setup accordingly:
+  - `BaseDielectricMap` (`ALBD`) $\rightarrow$ Base Color
+  - `NRMR_NRRTMap` (`NRMR / NRRT`) $\rightarrow$ Normal Map & Roughness
+  - `AlphaMap` (`ALP / MSK`) $\rightarrow$ Alpha (Opacity Mask)
+  - `FxEMIMap` (`EMI`) $\rightarrow$ Emission Color & Strength
+
+---
+
+### 3. Texture File Structure (.TEX)
+RE Engine proprietary compact texture format with the extension `.tex.xx` (`.tex.28` in Sunbreak).
+
+#### 3.1 File Header Area
+- `0x00 - 0x03`: Magic identifier fixed as `TEX\0` (`0x584554`).
+- `0x0C - 0x14`: Image width, height, mipmap count, and **DXGI texture compression format**:
+  - `Format 70/71/72`: BC1 / DXT1 (commonly used for opaque albedo or normal maps)
+  - `Format 73/74/75`: BC2 / DXT3
+  - `Format 76/77/78`: BC3 / DXT5 (textures with alpha channels)
+  - `Format 79/80/81`: BC4 / ATI1 (single-channel grayscale masks)
+  - `Format 82/83/84`: BC5 / ATI2 (two-channel normal maps commonly used in RE Engine)
+  - `Format 98/99`: BC7 (modern high-quality albedo compression format)
+
+#### 3.2 Dynamic Standard DDS Header Conversion
+Because different Blender versions parse DX10 extended headers differently, this add-on extracts the Mip0 data stream and dynamically constructs a standard 128-byte DirectDraw Surface (DDS) file header based on the DXGI format:
+- For BC1 through BC5, native FourCC codes (`DXT1`, `DXT5`, `ATI1`, `ATI2`) are used, bypassing DX10 extended headers.
+- For BC7, standard DX10 header encapsulation is used.
+- Upon loading, normal maps, roughness maps, and masks are automatically assigned the **`Non-Color`** color space to guarantee physically correct rendering.
+
+---
+
+### 4. Skeletal Animation File Structure (.MOTLIST)
+The animation file packages all motion clips for a character with the extension `.motlist.xx` (`.motlist.528` in Sunbreak).
+
+#### 4.1 Motion Package Structure
+- Contains header magic, action clip count, and action name indices (UTF-8 strings).
+- Each motion clip declares its total frame count and a list of animation tracks addressed by 64-bit hashes (MurmurHash3 wide-character hash).
+
+#### 4.2 Curve Track Decompression and Delta Decoding
+RE Engine utilizes specialized delta bit-packing streams for bone position, rotation, and scale:
+- **Quaternion Rotation Tracks**: Compresses X, Y, and Z quaternion components into 13-bit or 18-bit integers using baseline min/max bounds.
+- **Antipodal Quaternion Continuity Algorithm**:
+  Mathematically, quaternions $q$ and $-q$ represent the exact same 3D orientation. However, when positive/negative signs flip between adjacent keyframes, spherical linear interpolation (Slerp) traverses the long arc (360-degree rotation) between antipodal points, causing the bone to suddenly flip or spin 180 degrees at that frame.
+  The add-on implements dynamic dot-product verification: if $\Delta q_{t-1} \cdot \Delta q_t < 0$, the current delta quaternion is negated, ensuring smooth, non-flipping playback across the entire Action.
+
+#### 4.3 Clip Tracks and Endemic Life State Drivers
+- Beyond skeletal transform tracks, `.motlist` files also contain Capcom's proprietary **Clip Tracks**, such as `_PartsNo` and `_TriggerId` (event trigger hashes for audio and VFX).
+- For birds and endemic life, the add-on intelligently captures these tracks along with center-of-gravity (`Cog`) height and leg/wing rotation angles during flight/perching states. It converts these into Blender Armature custom properties (`vis_0`, `vis_1`, `vis_2`, etc.) and automatically rigs driver expressions to the corresponding submeshes, faithfully reproducing in-game dynamic morphological state transitions.
+
+<br><br>
+
+---
+---
+
+# MHRS Blender Importer
+
+这是一个用于导入《怪物猎人：崛起 / 曙光》（Monster Hunter Rise / Sunbreak）及卡普空 RE 引擎部分系列游戏的 `.mesh` 模型文件、`.mdf2` 材质文件、`.tex` 贴图文件以及 `.motlist` 骨骼动作动画文件的 Blender 插件。
+
+---
+
+## 致谢
+* 感谢 **alphaZomega** 和 **Gh0stblade**。本插件的基础二进制数据结构与逆向规范参考了他们在 Noesis 平台编写的 [fmt_RE_MESH-Noesis-Plugin](https://github.com/alphazolam/fmt_RE_MESH-Noesis-Plugin)。
+* 感谢 **FluffyQuack** 制作的 [REtool](http://modarchive.org/member.php?action=viewprofile&uid=1284) 工具，为《怪物猎人：崛起》及其它 RE 引擎游戏 `.pak` 包的解包与提取提供了不可或缺的支持。
+* 感谢 **nfh994** 制作的 [MHRUnpack](https://github.com/nfh994/MHRUnpack) 专用解包工具，以及 **Ekey** 制作的 [REE.Unpacker](https://github.com/Ekey/REE.PAK.Tool)。
+* 感谢 Capcom 游戏模组与逆向工程社区对 RE Engine 各格式解析所作出的卓越贡献。
+* 本插件是在 **Google Antigravity** 的全程协作与辅助下设计与重构完成的。代码注释可能包含中文。感谢 Google。
+
+---
+
+## 注意事项
+1. 本插件的测试平台是 **Blender 3.6.13**。其他版本的兼容性未测试。
+2. 在使用本插件前，需先使用 **REtool**（或 MHRUnpack 等同类解包工具）解包《怪物猎人：崛起》游戏的 `.pak` 文件，获取提取资源完整目录（如 `STM/` 文件夹树，保持原本的架构不要修改，并确定完整导出了 `MasterMaterial` 目录）。
+3. 插件内置了 Python 实现的 `.tex` 解析器与 DDS 头生成器，导入时可**自动将 `.tex.xx` 贴图转换为标准的 `.dds` 格式**，无需手动依赖外部贴图转换工具。
+4. **必须先导入 `.mesh.xx` 模型文件**，**选中 Armature 后再导入 `.motlist.xx` 动作动画文件**。
+5. 最好不要执行非一一对应的模型、骨骼、动画导入，未测试可能出现的问题。
+6. 未测试本插件是否适用于除《怪物猎人：崛起》外其他 RE 引擎游戏资产。
+
+---
+
+## 操作步骤
+
+### 1. 插件安装
+1. 下载插件仓库的完整压缩包或通过 Git 克隆。
+2. 打开 Blender，进入顶部菜单栏：`编辑 -> 偏好设置 -> 插件`（`Edit -> Preferences -> Add-ons`）。
+3. 点击右上角 **安装...**（`Install...`），选择插件压缩包并启用 **Import-Export: MHRS-blenderImporter**；或者直接将 `MHRS-blenderImporter` 文件夹拷贝至 Blender 插件目录。
+
+### 2. 导入模型（`.mesh.xx`）
+1. 菜单栏：`文件 -> 导入 -> MHRS Mesh (.mesh.*)`。
+2. 弹出交互式浏览窗口，在上方路径框或列表中导航至解包后的模型目录（如 `STM/enemy/em020/00/mod/`）。
+3. 选中对应的 `.mesh.*` 文件，点击右侧 `+` 号加入待加载列表（`Files to load`）。
+4. 在下方配置面板中按需勾选：
+   - **Load Textures**：加载基础 PBR 贴图（推荐勾选）。
+   - **Load All Textures**：模组开发/查看全套遮罩与伤损图时勾选。
+   - **Convert Textures**：自动将 `.tex` 转为 `.dds`（推荐勾选）。
+   - **Collapse Bones**：清理冗余末端伪骨骼。
+5. 点击下方 **确定**，插件将自动完成骨骼搭建、网格权重蒙皮、MDF2 材质解析、着色器节点组装及贴图挂载。
+
+### 3. 导入动作（`.motlist.xx`）
+1. 在 3D 视口中先**选中已导入模型的 Armature 骨骼物体**。
+2. 菜单栏：`文件 -> 导入 -> MHRS MotionList (.motlist.*)`。
+3. 在上方列表中选中目标 `.motlist.*` 动作文件，下方将即刻列出所有包含的子动作名称与帧数。
+4. 点击单个动作右侧的 `+` 号（或点击 `[ALL]` 添加全部动作）加入加载列表。
+5. 在下方选项中：
+   - **Force Center**：根据需要选择是否锁定根骨骼水平位移。
+   - **Creature Visibility Control**：若导入鸟类、昆虫等环境生物动作，保持勾选可自动启用多边形切换驱动；若需纯手动控制部件，取消勾选即可。
+6. 点击 **确定** 完成导入。打开 Blender 底部的 **动画摄影表 / 动作编辑器**（Action Editor），即可自由切换和回放不同的 Action 动作！
+
+---
+
+## 格式说明
+*(以下内容由 Google Gemini 生成)*
+
+以卡普空 RE 引擎《怪物猎人：崛起 / 曙光》（MHRSunbreak）主流版本为基准，数据严格按照小端序（Little-Endian）存储。
+
+### 1. 模型文件结构 (.MESH)
+基准版本：`version = 2109148288`（对应 `meshVersion = 2`，PC 曙光最新解包格式）。
+
+#### 1.1 文件头部区
+文件开头为 ASCII 标识 `MESH`（`0x4853454D`），紧接着记录内部版本号与各核心数据块的绝对偏移表。
+
+| 偏移量 | 长度 | 类型 | 字段名称 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `0x00` | 4 | 字符数组 | Magic | 文件标识符，固定为 `MESH` (`0x4853454D`) |
+| `0x04` | 4 | uint32 | Version | 模型内部版本号（如曙光为 `2109148288`） |
+| `0x08` | 4 | uint32 | FileSize | 模型文件总字节数 |
+| `0x12` | 2 | uint16 | NumNodes | 骨骼与材质等命名节点的总数 |
+| `0x18` | 8 | uint64 | LOD1Offset | **LOD1 与子网格描述区**的绝对文件偏移 |
+| `0x30` | 8 | uint64 | BonesOffset | **骨骼数据区**的绝对文件偏移 |
+| `0x48` | 8 | uint64 | VBuffHdrOffset | **顶点与索引缓冲区头部**的绝对文件偏移 |
+| `0x60` | 8 | uint64 | NodesIndicesOffset | **节点重映射索引区**的绝对文件偏移 |
+| `0x78` | 8 | uint64 | NamesOffset | **字符串指针表区**的绝对文件偏移 |
+
+#### 1.2 骨骼数据与变换矩阵
+位于 `BonesOffset` 偏移处，包含三段连续数据块：
+1. **骨骼层级信息**：
+   - 记录骨骼数量（`boneCount`）及每根骨骼的父骨骼编号（`parentIndex`，若为 `-1` 则表示无父级根节点）。
+2. **全局变换矩阵（Global Rest Matrices）**：
+   - 紧随层级结构，每根骨骼占据 64 字节（16 个单精度浮点数，4x4 矩阵）。
+   - **坐标系转换避坑点**：RE 引擎以**行主序（Row-Major）**存储变换矩阵，在导入 Blender 时必须转置为**列主序（Column-Major）**，并对平移坐标施加缩放系数，否则骨骼朝向与位置会发生扭曲。
+3. **动画与蒙皮映射对照表（`boneRemapTable`）**：
+   - 位于骨骼数据头部偏移后 48 字节处，用于将顶点引用的局部骨骼编号重映射为全局真实骨骼索引。
+   - 顶点混合索引（Blend Indices）必须经由此表查询重映射，才能与 Blender 骨骼顶点组形成 1:1 精确绑定。
+
+#### 1.3 顶点缓冲区（Vertex Buffer）
+通过 `VBuffHdrOffset` 读取顶点属性描述符（Vertex Elements）：
+- **Position (Type 0)**：三维坐标，3 个 32 位单精度浮点数（`float3`）。
+- **Normal (Type 1)**：四维压缩法线，4 个有符号字节（`int8`），读取后除以 127.0 还原。
+- **UV0 / UV1 (Type 2 / 3)**：纹理 UV 坐标，采用 16 位半精度浮点数（`float16 / half`）。因 DirectX 纹理坐标系原点位于左上角，导入 Blender 时需执行 `(u, 1.0 - v)` 翻转 V 轴。
+- **Blend Weights (Type 4)**：骨骼权重，通常为 4 字节归一化数值。
+- **Blend Indices (Type 5)**：骨骼编号索引，每个顶点最多支持绑定 8 根影响骨骼。
+
+#### 1.4 LOD 与 Submesh 数据区
+位于 `LOD1Offset` 处：
+- 依次声明模型 LOD 层级总数（`lod_count`）以及材质总数（`mat_count`）。
+- 遍历 Submesh 描述头时，获取每个子网格所属的 **`GroupID`**（用于区分肢体/破损部位）以及引用的材质索引 `MaterialID`。
+
+---
+
+### 2. 材质文件结构 (.MDF2)
+RE 引擎材质定义文件，后缀为 `.mdf2.xx`（曙光通常为 `.mdf2.23`）。
+
+#### 2.1 文件头部
+- `0x00 - 0x03`：标识符固定为 `MDF\0`（`0x46444D`）。
+- `0x04 - 0x07`：次版本号与材质声明计数（`mat_count`）。
+
+#### 2.2 材质信息块（Material Info）
+每个材质块声明了材质名称字符串指针（UTF-16LE 宽字符编码）、着色器模板路径（`MasterMaterial/.../xxx.mmtr`）、透明通道模式（`AlphaFlags`）及浮点参数表。
+- **基础物理参数**：`BaseColor`（RGBA 4 浮点向量）、`Roughness`（粗糙度）、`Metallic`（金属度）、`Emissive`（自发光颜色与倍率强度）。
+
+#### 2.3 纹理槽位声明（Textures List）
+声明了该材质引用的所有贴图插槽类型及相对路径（如 `BaseDielectricMap -> enemy/.../em020_00_ALBD.tex`）。
+- 插件据此在 Blender Principled BSDF 着色节点中按规范自动连线：
+  - `BaseDielectricMap` (`ALBD`) $\rightarrow$ 基础色（Base Color）
+  - `NRMR_NRRTMap` (`NRMR / NRRT`) $\rightarrow$ 法线贴图（Normal Map）及粗糙度（Roughness）
+  - `AlphaMap` (`ALP / MSK`) $\rightarrow$ 不透明度遮罩（Alpha）
+  - `FxEMIMap` (`EMI`) $\rightarrow$ 发光颜色与强度（Emission）
+
+---
+
+### 3. 贴图文件结构 (.TEX)
+RE 引擎专属紧凑纹理格式，后缀为 `.tex.xx`（曙光通常为 `.tex.28`）。
+
+#### 3.1 文件头部区
+- `0x00 - 0x03`：标识符固定为 `TEX\0`（`0x584554`）。
+- `0x0C - 0x14`：图像宽度（Width）、高度（Height）、Mip 贴图层级深度以及 **DXGI 纹理压缩编码格式**：
+  - `Format 70/71/72`：BC1 / DXT1（通常用于无透明通道的固有色或法线图）
+  - `Format 73/74/75`：BC2 / DXT3
+  - `Format 76/77/78`：BC3 / DXT5（带 Alpha 通道的贴图）
+  - `Format 79/80/81`：BC4 / ATI1（单通道灰度遮罩）
+  - `Format 82/83/84`：BC5 / ATI2（RE 引擎常用的双通道法线贴图）
+  - `Format 98/99`：BC7（现代高质量高质量固有色压缩格式）
+
+#### 3.2 动态标准 DDS 封装转换
+由于 Blender 的图像底层加载器在跨版本时对 DX10 扩展头的解析策略不同，本插件提取 Mip0 数据流后，根据 DXGI 格式动态构建标准的 128 字节 DirectDraw Surface（DDS）文件头：
+- 对于 BC1~BC5，使用原生 FourCC（`DXT1`、`DXT5`、`ATI1`、`ATI2`），规避 DX10 扩展头；
+- 对于 BC7，采用规范的标准 DX10 Header 封装；
+- 贴图载入后，法线图、粗糙度图及遮罩图自动设定为 **`Non-Color`** 色彩空间，确保渲染计算物理正确。
+
+---
+
+### 4. 骨骼动作动画文件结构 (.MOTLIST)
+动作文件整合了角色的全部动画剪辑，后缀为 `.motlist.xx`（曙光通常为 `.motlist.528`）。
+
+#### 4.1 动作包结构
+- 包含文件头标识符、动作剪辑数量以及所有动作名称索引（UTF-8 字符）。
+- 每一个动作片段内部包含总帧数声明以及由 64 位宽哈希（MurmurHash3 宽字符哈希）寻址的动画轨道列表（Tracks）。
+
+#### 4.2 曲线轨道解压缩与反差分
+RE 引擎针对骨骼位移（Position）、旋转（Rotation）与缩放（Scale）采用了特异化的差分与位宽压缩流：
+- **四元数旋转轨道**：利用极值基准值（Min/Max bounds），将四元数的 X、Y、Z 分量压缩为 13 位或 18 位整型数值。
+- **四元数对跖半球连续性算法**：
+  数学上四元数 $q$ 与 $-q$ 代表完全相同的 3D 旋转姿态，但当相邻关键帧发生正负符号跳跃时，球面插值器（Slerp）会在两个对跖点之间走劣弧旋转 360 度，表现为骨骼在该帧瞬间自转翻折。
+  插件在解析关键帧时引入动态点积校验：若 $\Delta q_{t-1} \cdot \Delta q_t < 0$，则将当前增量四元数取反反转，确保整段 Action 全程平滑无翻折。
+
+#### 4.3 剪辑轨迹与环境生物状态驱动（Clip Tracks）
+- `.motlist` 中不仅包含骨骼变换轨道，还包含了卡普空专属的**剪辑轨迹（Clip Tracks）**，例如 `_PartsNo` 以及 `_TriggerId`（用于音频与粒子特效的触发事件哈希）。
+- 插件针对鸟类与环境生物，智能捕获这些轨迹以及飞行/站立姿态中的重心（`Cog`）高度与腿翼旋转值，转化为 Blender Armature 属性（`vis_0`, `vis_1`, `vis_2` 等），并自动向对应子网格装配驱动表达式（Drivers），完美重现游戏内的动态变态展现。
+
+---
