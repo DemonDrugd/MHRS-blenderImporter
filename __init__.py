@@ -14,13 +14,13 @@ License: MIT
 bl_info = {
     "name": "MHRS-blenderImporter",
     "author": "DemonDrug",
-    "version": (1, 1, 0),
+    "version": (1, 0, 0),
     "blender": (3, 6, 0),
     "location": "File > Import > MHRS Mesh (.mesh.*) / MotionList (.motlist.*)",
-    "description": "This is a Blender add-on used for importing .mesh.xx model files and .motlist.xx animation files from Monster Hunter Rise（Sunbreak and other RE framework games).",
+    "description": "Blender add-on for importing .mesh, .mdf2, .tex, and .motlist files from Monster Hunter Rise / Sunbreak.",
     "warning": "",
-    "doc_url": "https://github.com/DemonDrug/MHRS-blenderImporter",
-    "tracker_url": "https://github.com/DemonDrug/MHRS-blenderImporter/issues",
+    "doc_url": "https://github.com/DemonDrugd/MHRS-blenderImporter",
+    "tracker_url": "https://github.com/DemonDrugd/MHRS-blenderImporter/issues",
     "category": "Import-Export",
 }
 
