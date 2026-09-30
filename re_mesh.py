@@ -425,23 +425,8 @@ class REMeshImporter:
                     # it on/off with the Eye icon in the Outliner or with Alt+H.
                     if group_id >= 200:
                         m_obj.hide_set(True)
-                    elif ('environmentcreature' in self.filepath.lower() or re.search(r'ec\d{3}', self.filepath.lower())):
-                        # For environment creatures with multi-state frame meshes (e.g. butterfly wings 1..5, frog legs 1..3, bird wings/crest),
-                        # default secondary frames to hidden via hide_viewport/hide_render so Outliner Eye remains open for animation.
-                        if group_id not in (0, 1, 3, 10, 20, 30):
-                            m_obj.hide_viewport = True
-                            m_obj.hide_render = True
-                            m_obj.hide_set(False)
 
                 num_verts_lod += num_verts
-
-        # Setup environment creature multi-frame visibility drivers if Armature is present
-        if arm_obj and created_mesh_objs:
-            try:
-                from .re_mot import setup_mesh_visibility_drivers
-            except ImportError:
-                from re_mot import setup_mesh_visibility_drivers
-            setup_mesh_visibility_drivers(arm_obj, created_mesh_objs)
 
         print(f"[RE_Plugin] Successfully imported {len(created_mesh_objs)} meshes from {self.filepath}")
         return {'FINISHED'}

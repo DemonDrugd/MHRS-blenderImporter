@@ -582,6 +582,42 @@ def parse_motfsm2(fsm_path):
         return None
 
 
+def _get_active_bones_for_group(m_objs):
+    active = set()
+    for o in m_objs:
+        if hasattr(o, 'type') and o.type == 'MESH' and hasattr(o, 'data') and o.data:
+            if hasattr(o.data, 'vertices') and hasattr(o, 'vertex_groups') and len(o.vertex_groups) > 0:
+                for v in o.data.vertices:
+                    for g in v.groups:
+                        if g.weight > 0.01 and g.group < len(o.vertex_groups):
+                            active.add(o.vertex_groups[g.group].name)
+    return active
+
+
+def _are_groups_separate_entities(gids, mesh_by_gid):
+    """
+    Checks if the given group IDs represent separate concurrent flock/swarm entities
+    (e.g. ec034_01 with 3 simultaneous insects) rather than mutually-exclusive flipbook
+    animation states of a single entity.
+    If each group in gids binds exclusively to distinct, non-overlapping bones, they are
+    separate entities and must NEVER be driven or hidden by visibility properties.
+    """
+    if len(gids) <= 1:
+        return False
+    group_bones = []
+    for g in gids:
+        b_set = _get_active_bones_for_group(mesh_by_gid.get(g, []))
+        if not b_set:
+            return False
+        group_bones.append(b_set)
+
+    for i in range(len(group_bones)):
+        for j in range(i + 1, len(group_bones)):
+            if group_bones[i] & group_bones[j]:
+                return False  # Overlapping bone -> shared part of same body
+    return True
+
+
 def get_model_parts(mesh_by_gid, arm_obj=None):
     """
     Partitions submesh groups (0 < gid < 100) into distinct anatomical parts.
@@ -612,7 +648,7 @@ def get_model_parts(mesh_by_gid, arm_obj=None):
         # Group 12+ are independent accessories (e.g. leaf held in ec033's beak).
         # Group 20/21 is Feet (20 Ground Standing, 21 Air Tucked).
         # Their wings flap via bone animation, NOT by rapid multi-frame mesh cycling!
-        if d0_gids:
+        if d0_gids and not _are_groups_separate_entities(d0_gids, mesh_by_gid):
             wing_gids = [g for g in d0_gids if g > 0]
             def_gid = 2 if 2 in wing_gids else (wing_gids[0] if wing_gids else 0)
             parts.append({
@@ -626,6 +662,8 @@ def get_model_parts(mesh_by_gid, arm_obj=None):
         other_decades = sorted(list(set(g // 10 for g in valid_gids if g >= 10)))
         for d in other_decades:
             g_list = sorted([g for g in valid_gids if g // 10 == d])
+            if _are_groups_separate_entities(g_list, mesh_by_gid):
+                continue
             if d == 1:
                 # Decade 1 (Beak decade):
                 # Standard beak pair is strictly [10, 11] (10 Closed, 11 Open)
@@ -709,7 +747,7 @@ def get_model_parts(mesh_by_gid, arm_obj=None):
                 'default_gid': 1,
                 'is_wings': True
             })
-    elif d0_gids:
+    elif d0_gids and not _are_groups_separate_entities(d0_gids, mesh_by_gid):
         sub_names = [m.name.lower() for g in d0_gids for m in mesh_by_gid.get(g, [])]
         is_wings = any(any(k in sn for k in ['wing', 'chou', 'mushi', 'fly', 'feather', 'twoside']) for sn in sub_names)
         if len(d0_gids) >= 4:
@@ -724,6 +762,8 @@ def get_model_parts(mesh_by_gid, arm_obj=None):
     other_decades = sorted(list(set(g // 10 for g in valid_gids if g >= 10)))
     for d in other_decades:
         g_list = [g for g in valid_gids if g // 10 == d]
+        if _are_groups_separate_entities(g_list, mesh_by_gid):
+            continue
         sub_names = [m.name.lower() for g in g_list for m in mesh_by_gid.get(g, [])]
         is_wings = any(any(k in sn for k in ['wing', 'chou', 'mushi', 'fly', 'feather', 'twoside']) for sn in sub_names)
         if len(g_list) >= 3:
@@ -754,6 +794,19 @@ def setup_mesh_visibility_drivers(arm_obj, child_meshes):
             mesh_by_gid.setdefault(gid, []).append(m_obj)
 
     parts = get_model_parts(mesh_by_gid, arm_obj)
+
+    if not parts:
+        # No multi-frame parts for this model (e.g. flock / swarm creatures like ec034_01,
+        # or single-mesh models). Clean up any lingering drivers and ensure full visibility.
+        for m_obj in child_meshes:
+            if m_obj.animation_data:
+                for d in list(m_obj.animation_data.drivers):
+                    if d.data_path in ('hide_viewport', 'hide_render') or 'scale' in d.data_path:
+                        m_obj.animation_data.drivers.remove(d)
+            m_obj.hide_viewport = False
+            m_obj.hide_render = False
+            m_obj.scale = (1.0, 1.0, 1.0)
+        return
 
     for p in parts:
         prop_name = p['prop_name']
@@ -928,7 +981,7 @@ def apply_motion_to_armature(arm_obj, mot, scale=1.0, force_center=False, enable
         seen_gids = set()
         for track_name, kfs in vis_tracks.items():
             for _, target_gid in kfs:
-                if target_gid > 0 and target_gid not in seen_gids:
+                if 0 < target_gid < 1000 and target_gid not in seen_gids:
                     seen_gids.add(target_gid)
                     parts.append({
                         'prop_name': f'vis_{target_gid // 10}',
@@ -936,6 +989,20 @@ def apply_motion_to_armature(arm_obj, mot, scale=1.0, force_center=False, enable
                         'default_gid': target_gid,
                         'is_wings': False
                     })
+
+    if not parts:
+        # No multi-frame parts for this model (e.g. flock / swarm creatures like ec034_01,
+        # or single-mesh models). Ensure all child meshes are completely unconstrained
+        # by drivers and fully visible.
+        for m_obj in child_meshes:
+            if m_obj.animation_data:
+                for d in list(m_obj.animation_data.drivers):
+                    if d.data_path in ('hide_viewport', 'hide_render') or 'scale' in d.data_path:
+                        m_obj.animation_data.drivers.remove(d)
+            m_obj.hide_viewport = False
+            m_obj.hide_render = False
+            m_obj.scale = (1.0, 1.0, 1.0)
+        return action
 
     end_frame = float(mot.frame_count) if mot.frame_count > 0 else 0.0
 
